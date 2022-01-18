@@ -1,8 +1,5 @@
-from asyncio.windows_events import NULL
-from telnetlib import STATUS
-from typing import final
-from flask import Flask, jsonify, request, Response
-from tests import test_releve, test_sonde, test_user
+from flask import Flask, jsonify, request
+from tests import test_possede, test_sonde, test_user, test_releve
 import mysql.connector
 
 
@@ -14,11 +11,14 @@ import mysql.connector
 app = Flask(__name__)
 conn = mysql.connector.connect(
     host="localhost", user="root", password="root", database="cube")
+
+
 testLib = {
     "releve": test_releve.main,
     "sonde": test_sonde.main,
     "user": test_user.main,
-    "full": [test_releve.main, test_sonde.main, test_user.main],
+    "possede": test_possede.main,
+    "full": [test_releve.main, test_sonde.main, test_user.main, test_possede.main],
 }
 
 
@@ -55,10 +55,10 @@ def getSonde(uid):
         return jsonify({"error": "sonde not found"}), 404
 
 
-# TODO add test for this and format return
 @app.route("/sonde/solo", methods=['GET'], endpoint='getSondeSolo')
 def getSondeSolo():
     header = request.headers
+    print(header)
     profile_id = header["profile"]
     admin = isAdmin(profile_id)
 
@@ -223,7 +223,6 @@ def activateSonde(uid):
         return jsonify({"error": "sonde not found"}), 404
 
 
-# TODO add test
 @app.route("/sonde/<sonde_uid>/user/<user_uid>", methods=['PUT'], endpoint='addUserToSonde')
 def addUserToSonde(sonde_uid, user_uid):
     # retrieve the data from the request
@@ -235,19 +234,52 @@ def addUserToSonde(sonde_uid, user_uid):
 
     if status == "True":
         cursor = conn.cursor()
-        body = request.get_json()
 
         cursor.execute(
             "SELECT `id_sonde` FROM `possede` WHERE `id_sonde` = %s AND `id_user` = %s", (sonde_id, user_id,))
         sonde = cursor.fetchone()
 
-        if sonde is not None:
+        if sonde is None:
             cursor.execute(
                 "INSERT INTO `possede` (id_sonde,id_user) VALUES (%s,%s)", (sonde_id, user_id,))
             conn.commit()
             return jsonify({"success": "user added to sonde"}), 200
         else:
+            # TODO : change to logic error code
             return jsonify({"error": "user already in sonde"}), 400
+    elif status == "False":
+        return jsonify({"error": "you are not the owner of this sonde"}), 403
+    elif status == "user404":
+        return jsonify({"error": "user not found"}), 404
+    elif status == "sonde404":
+        return jsonify({"error": "sonde not found"}), 404
+
+
+@app.route("/sonde/<sonde_uid>/user/<user_uid>", methods=['DELETE'], endpoint='removeUserFromSonde')
+def removeUserFromSonde(sonde_uid, user_uid):
+    # retrieve the data from the request
+    header = request.headers
+    profile_id = header["profile"]
+    sonde_id = request.view_args['sonde_uid']
+    user_id = request.view_args["user_uid"]
+    status = ownSonde(sonde_id, profile_id)
+
+    if status == "True":
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT `id_sonde` FROM `possede` WHERE `id_sonde` = %s AND `id_user` = %s", (sonde_id, user_id,))
+        sonde = cursor.fetchone()
+
+        if sonde is not None:
+
+            cursor.execute(
+                "DELETE FROM `possede` WHERE `id_sonde` = %s AND `id_user` = %s", (sonde_id, user_id,))
+            conn.commit()
+
+            return jsonify({"success": "user removed from sonde"}), 200
+        else:
+            # TODO : change to logic error code
+            return jsonify({"error": "user not in sonde"}), 400
     elif status == "False":
         return jsonify({"error": "you are not the owner of this sonde"}), 403
     elif status == "user404":
@@ -273,7 +305,6 @@ def getUser(uid):
         return jsonify({"error": "user not found"}), 404
 
 
-# TODO create test and format output
 @app.route("/user/<uid>/sonde", methods=['GET'], endpoint='getUserSonde')
 def getUserSonde(uid):
     user_id = request.view_args['uid']
@@ -281,14 +312,24 @@ def getUserSonde(uid):
     cursor.execute(
         "SELECT `id_sonde` FROM `possede` WHERE `id_user` = %s", (user_id,))
     sonde_id = cursor.fetchall()
+    print(sonde_id)
     if sonde_id is not None:
-        sonde = []
+        sondelist = []
         for i in sonde_id:
             cursor.execute(
-                "SELECT * FROM `sonde` WHERE `id` = %s", (i[0],))
-            sonde.append(cursor.fetchone())
+                "SELECT `active`,`latitude`,`longitude` FROM `sonde` WHERE `id` = %s", (i[0],))
+            sonde = cursor.fetchall()
+            for j in sonde:
+                sondelist.append(
+                    {
+                        "id": i[0],
+                        "active": j[0],
+                        "latitude": j[1],
+                        "longitude": j[2]
+                    }
+                )
         return jsonify(
-            sonde
+            sondelist
         ), 200
     else:
         return jsonify({"error": "no sonde found for this user"}), 404
