@@ -14,8 +14,9 @@ from requests.structures import CaseInsensitiveDict
 
 def main():
     base_url = "http://localhost:5000/"
-    test_profile = "1"
+    test_profile = "13"
     test_sonde = "1"
+    test_profile_pd = "admin"
 
     # GET LIST OF FATHERLESS SONDE
     url = base_url + "sonde/solo"
@@ -23,6 +24,7 @@ def main():
     headers = CaseInsensitiveDict()
     headers["Content-Type"] = "application/json"
     headers["profile"] = test_profile
+    headers["password"] = test_profile_pd
 
     resp = call("GET", url, headers=headers)
     json_body = json.loads(resp.text)
@@ -34,6 +36,7 @@ def main():
     headers = CaseInsensitiveDict()
     headers["Content-Type"] = "application/json"
     headers["profile"] = test_profile
+    headers["password"] = test_profile_pd
 
     resp = call("GET", url, headers=headers)
     json_body = json.loads(resp.text)
@@ -49,6 +52,7 @@ def main():
         headers = CaseInsensitiveDict()
         headers["Content-Type"] = "application/json"
         headers["profile"] = test_profile
+        headers["password"] = test_profile_pd
 
         resp = call("DELETE", url, headers=headers)
         print("Succefully Deleted User from Sonde : " + test_sonde)
@@ -59,6 +63,7 @@ def main():
         headers = CaseInsensitiveDict()
         headers["Content-Type"] = "application/json"
         headers["profile"] = test_profile
+        headers["password"] = test_profile_pd
 
         resp = call("PUT", url, headers=headers)
         json_body = json.loads(resp.text)
@@ -72,6 +77,7 @@ def main():
         headers = CaseInsensitiveDict()
         headers["Content-Type"] = "application/json"
         headers["profile"] = test_profile
+        headers["password"] = test_profile_pd
 
         resp = call("PUT", url, headers=headers)
         json_body = json.loads(resp.text)
@@ -84,6 +90,7 @@ def main():
         headers = CaseInsensitiveDict()
         headers["Content-Type"] = "application/json"
         headers["profile"] = test_profile
+        headers["password"] = test_profile_pd
 
         resp = call("DELETE", url, headers=headers)
         print("Succefully Deleted User from Sonde : " + test_sonde)

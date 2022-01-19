@@ -1,3 +1,6 @@
+import hashlib
+import os
+from sqlite3 import Cursor
 from flask import Flask, jsonify, request
 from tests import test_possede, test_sonde, test_user, test_releve
 import mysql.connector
@@ -29,7 +32,14 @@ def getSonde(uid):
     # retrieve the data from the request
     header = request.headers
     profile_id = header["profile"]
+    password = header["password"]
     sonde_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -58,9 +68,13 @@ def getSonde(uid):
 @app.route("/sonde/solo", methods=['GET'], endpoint='getSondeSolo')
 def getSondeSolo():
     header = request.headers
-    print(header)
     profile_id = header["profile"]
     admin = isAdmin(profile_id)
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
 
     if admin:
         cursor = conn.cursor(buffered=True)
@@ -89,6 +103,11 @@ def createSonde():
     latitude = body["latitude"]
     longitude = body["longitude"]
 
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO `sonde` (active,latitude,longitude) VALUES (1,%s,%s)", (latitude, longitude,))
@@ -113,6 +132,12 @@ def updateSonde(uid):
     header = request.headers
     profile_id = header["profile"]
     sonde_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -146,6 +171,12 @@ def deleteSonde(uid):
     header = request.headers
     profile_id = header["profile"]
     sonde_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -171,6 +202,12 @@ def desactivateSonde(uid):
     header = request.headers
     profile_id = header["profile"]
     sonde_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -201,6 +238,12 @@ def activateSonde(uid):
     header = request.headers
     profile_id = header["profile"]
     sonde_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -230,6 +273,12 @@ def addUserToSonde(sonde_uid, user_uid):
     profile_id = header["profile"]
     sonde_id = request.view_args['sonde_uid']
     user_id = request.view_args["user_uid"]
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -262,6 +311,12 @@ def removeUserFromSonde(sonde_uid, user_uid):
     profile_id = header["profile"]
     sonde_id = request.view_args['sonde_uid']
     user_id = request.view_args["user_uid"]
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     status = ownSonde(sonde_id, profile_id)
 
     if status == "True":
@@ -291,11 +346,19 @@ def removeUserFromSonde(sonde_uid, user_uid):
 # user part
 @app.route("/user/<uid>", methods=['GET'], endpoint='getUser')
 def getUser(uid):
+    header = request.headers
     user_id = request.view_args['uid']
+    profile_id = header["profile"]
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM `user` WHERE `id` = %s", (user_id,))
     user = cursor.fetchone()
-    if user is not None:
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if user is not None and (user[0] == user_id or str(user[2]) == "1"):
         return jsonify(
             id=user[0],
             name=user[1],
@@ -307,32 +370,31 @@ def getUser(uid):
 
 @app.route("/user/<uid>/sonde", methods=['GET'], endpoint='getUserSonde')
 def getUserSonde(uid):
+    header = request.headers
+    profile_id = header["profile"]
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     user_id = request.view_args['uid']
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT `id_sonde` FROM `possede` WHERE `id_user` = %s", (user_id,))
-    sonde_id = cursor.fetchall()
-    print(sonde_id)
-    if sonde_id is not None:
-        sondelist = []
-        for i in sonde_id:
-            cursor.execute(
-                "SELECT `active`,`latitude`,`longitude` FROM `sonde` WHERE `id` = %s", (i[0],))
-            sonde = cursor.fetchall()
-            for j in sonde:
-                sondelist.append(
-                    {
-                        "id": i[0],
-                        "active": j[0],
-                        "latitude": j[1],
-                        "longitude": j[2]
-                    }
-                )
-        return jsonify(
-            sondelist
-        ), 200
+    if user_id == profile_id or isAdmin(profile_id):
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT `id_sonde` FROM `possede` WHERE `id_user` = %s", (user_id,))
+        sonde = cursor.fetchall()
+        if sonde is not None:
+            sonde_list = []
+            for sonde_id in sonde:
+                cursor.execute(
+                    "SELECT * FROM `sonde` WHERE `id` = %s", (sonde_id[0],))
+                sonde_list.append(cursor.fetchone())
+            return jsonify(sonde_list), 200
+        else:
+            return jsonify({"error": "user has no sonde"}), 404
     else:
-        return jsonify({"error": "no sonde found for this user"}), 404
+        return jsonify({"error": "forbidden"}), 403
 
 
 @ app.route("/user/<uid>", methods=['PUT'], endpoint='updateUser')
@@ -341,6 +403,11 @@ def updateUser(uid):
     header = request.headers
     profile_id = header["profile"]
     user_id = request.view_args['uid']
+
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
 
     # check if the user exist
     cursor = conn.cursor()
@@ -391,6 +458,11 @@ def createUser():
     profile_id = header["profile"]
     cursor = conn.cursor()
 
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     body = request.get_json()
     name = body["name"]
     admin = body["admin"]
@@ -402,8 +474,10 @@ def createUser():
 
     if isAdmin(profile_id):
 
+        encrypted_salt, encrypted_pd = encryptPassword(body["password"])
+
         cursor.execute(
-            "INSERT INTO `user` (`name`,`admin`) VALUES (%s,%s)", (name, admin))
+            "INSERT INTO `user` (`name`,`admin`,`password`,`salt`) VALUES (%s,%s,%s,%s)", (name, admin, encrypted_pd, encrypted_salt,))
         conn.commit()
         return jsonify(
             id=cursor.lastrowid,
@@ -421,6 +495,11 @@ def deleteUser(uid):
     profile_id = header["profile"]
     user_id = request.view_args['uid']
 
+    # authentification
+    password = header["password"]
+    if checkPassword(profile_id, password_try=password) is False:
+        return jsonify({"error": "Unauthorized"}), 401
+
     if isAdmin(profile_id) or user_id == profile_id:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM `user` WHERE `id` = %s", (user_id,))
@@ -434,6 +513,8 @@ def deleteUser(uid):
             return jsonify({"success": "user deleted"}), 200
         else:
             return jsonify({"error": "user not found"}), 404
+    else:
+        return jsonify({"error": "forbidden"}), 403
 
 # relevé part
 
@@ -588,6 +669,37 @@ def ownSonde(sonde, profile):
                 return "user404"
             else:
                 return "sonde404"
+
+
+def encryptPassword(password):
+    # Example generation
+    salt = os.urandom(32)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return salt, key
+
+
+# check if the password is correct
+def checkPassword(user_id, password_try):
+    # check if the user exit and retreive the salt and the key
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT `password`,`salt` FROM `user` WHERE `id` = %s", (user_id,))
+    user = cursor.fetchone()
+
+    # if the user exist
+    if user is not None:
+        password = bytes(user[0])
+        salt = bytes(user[1])
+
+        # encode password_try with the same salt as the password stored in database
+        key2 = hashlib.pbkdf2_hmac(
+            'sha256', password_try.encode('utf-8'), salt, 100000)
+
+        # compare the two key
+        if key2 == password:
+            return "True"
+        else:
+            return "False"
 
 
 def isAdmin(profile):
